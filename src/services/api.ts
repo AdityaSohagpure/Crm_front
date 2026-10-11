@@ -214,3 +214,99 @@ export async function testMetaWebhookHandshake(
   }
   return resp.text();
 }
+
+// 8. Deals: List
+export async function fetchDeals(): Promise<any[]> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const resp = await fetch(`${API_BASE_URL}/api/v1/deals`, { headers });
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch deals: HTTP ${resp.status}`);
+  }
+  const data = await resp.json();
+  return data.data || [];
+}
+
+// 9. Deals: Create
+export async function createBackendDeal(dealData: {
+  title: string;
+  company: string;
+  contactPerson: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  value?: number;
+  currency?: string;
+  stage?: string;
+  score?: number;
+  source?: string;
+  priority?: string;
+  assignedTo?: string;
+  expectedCloseDate?: string;
+  serviceCategory?: string;
+  notes?: string;
+}): Promise<any> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const resp = await fetch(`${API_BASE_URL}/api/v1/deals`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(dealData)
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: 'Failed to create deal' }));
+    throw new Error(err.detail || 'Failed to create deal');
+  }
+  const data = await resp.json();
+  return data.data;
+}
+
+// 10. Deals: Update Stage
+export async function updateBackendDealStage(dealId: string, stage: string): Promise<any> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const resp = await fetch(`${API_BASE_URL}/api/v1/deals/${encodeURIComponent(dealId)}/stage`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ stage })
+  });
+  if (!resp.ok) {
+    throw new Error(`Failed to update deal stage: HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+// 11. Deals: Delete
+export async function deleteBackendDeal(dealId: string): Promise<any> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const resp = await fetch(`${API_BASE_URL}/api/v1/deals/${encodeURIComponent(dealId)}`, {
+    method: 'DELETE',
+    headers
+  });
+  if (!resp.ok) {
+    throw new Error(`Failed to delete deal: HTTP ${resp.status}`);
+  }
+  return resp.json();
+}

@@ -10,7 +10,9 @@ import type {
   CompanyConfig, 
   TenantOrg, 
   AutomationRule,
-  DealStage 
+  DealStage,
+  LeadSource,
+  Priority
 } from '../types/crm';
 import { 
   INITIAL_DEALS, 
@@ -25,7 +27,15 @@ import {
   INITIAL_AUTOMATIONS 
 } from '../data/mockData';
 import confetti from 'canvas-confetti';
-import { checkBackendHealth, fetchContacts, createBackendContact } from '../services/api';
+import { 
+  checkBackendHealth, 
+  fetchContacts, 
+  createBackendContact,
+  fetchDeals,
+  createBackendDeal,
+  updateBackendDealStage,
+  deleteBackendDeal
+} from '../services/api';
 
 interface CRMContextType {
   deals: Deal[];
@@ -153,6 +163,43 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch {
           // Keep local mock/cached contacts if not yet authenticated
         }
+
+        // Fetch live deals stored in PostgreSQL / Neon database
+        try {
+          const liveDeals = await fetchDeals();
+          if (liveDeals && liveDeals.length > 0) {
+            setDeals(prev => {
+              const existingIds = new Set(prev.map(d => d.id));
+              const newItems: Deal[] = liveDeals
+                .filter(ld => !existingIds.has(ld.id))
+                .map(ld => ({
+                  id: ld.id,
+                  title: ld.title,
+                  company: ld.company,
+                  contactPerson: ld.contactPerson,
+                  contactEmail: ld.contactEmail || '',
+                  contactPhone: ld.contactPhone || '',
+                  value: Number(ld.value) || 0,
+                  currency: ld.currency || 'INR',
+                  stage: ld.stage as DealStage,
+                  score: Number(ld.score) || 50,
+                  source: ld.source as LeadSource,
+                  priority: ld.priority as Priority,
+                  assignedTo: ld.assignedTo || 'Ananya Sharma',
+                  assignedAvatar: ld.assignedAvatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+                  expectedCloseDate: ld.expectedCloseDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+                  daysInStage: Number(ld.daysInStage) || 0,
+                  serviceCategory: ld.serviceCategory || 'Cloud Architecture & DevOps',
+                  notes: ld.notes || '',
+                  createdAt: ld.createdAt || new Date().toISOString().split('T')[0],
+                  updatedAt: ld.updatedAt || new Date().toISOString().split('T')[0]
+                }));
+              return [...newItems, ...prev];
+            });
+          }
+        } catch {
+          // Keep local mock/cached deals if backend fetch encounters issues
+        }
       } else {
         setBackendOnline(false);
       }
@@ -204,9 +251,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const activeTenant = tenants.find(t => t.id === activeTenantId) || tenants[0];
 
   const addDeal = (dealData: Omit<Deal, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const tempId = `DEAL-${Math.floor(1000 + Math.random() * 9000)}`;
     const newDeal: Deal = {
       ...dealData,
-      id: `DEAL-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: tempId,
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
     };
@@ -220,6 +268,35 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       content: `Deal "${newDeal.title}" created with value ${companyConfig.currencySymbol}${newDeal.value.toLocaleString()}`,
       performedBy: newDeal.assignedTo,
     });
+
+    // Save to Cloud Database (PostgreSQL / Neon via Render)
+    createBackendDeal({
+      title: dealData.title,
+      company: dealData.company,
+      contactPerson: dealData.contactPerson,
+      contactEmail: dealData.contactEmail,
+      contactPhone: dealData.contactPhone,
+      value: dealData.value,
+      currency: dealData.currency,
+      stage: dealData.stage,
+      score: dealData.score,
+      source: dealData.source,
+      priority: dealData.priority,
+      assignedTo: dealData.assignedTo,
+      expectedCloseDate: dealData.expectedCloseDate,
+      serviceCategory: dealData.serviceCategory,
+      notes: dealData.notes,
+    })
+      .then(savedDeal => {
+        if (savedDeal && savedDeal.id) {
+          // Update temp ID with database-persisted ID
+          setDeals(prev => prev.map(d => d.id === tempId ? { ...d, id: savedDeal.id } : d));
+          showToast(`⚡ Deal "${savedDeal.title}" saved to PostgreSQL Database!`);
+        }
+      })
+      .catch(err => {
+        console.warn('Backend database deal storage:', err);
+      });
   };
 
   const updateDealStage = (dealId: string, newStage: DealStage) => {
@@ -256,6 +333,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         performedBy: deal.assignedTo,
       });
     }
+
+    // Persist stage update to backend database
+    updateBackendDealStage(dealId, newStage).catch(err => {
+      console.warn('Backend deal stage update error:', err);
+    });
   };
 
   const updateDeal = (updatedDeal: Deal) => {
@@ -266,6 +348,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteDeal = (dealId: string) => {
     setDeals(prev => prev.filter(d => d.id !== dealId));
     showToast(`Deal deleted.`);
+
+    // Persist deletion to backend database
+    deleteBackendDeal(dealId).catch(err => {
+      console.warn('Backend deal deletion error:', err);
+    });
   };
 
   const addLead = (leadData: Omit<Lead, 'id' | 'createdAt'>) => {
