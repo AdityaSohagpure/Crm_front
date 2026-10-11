@@ -8,9 +8,34 @@ export const API_BASE_URL =
 
 export interface HealthCheckResponse {
   status: string;
+  database?: string;
   service?: string;
   services?: Record<string, string>;
   framework?: string;
+}
+
+export interface DatabaseStatusResponse {
+  status: string;
+  database_connected: boolean;
+  engine?: string;
+  driver?: string;
+  latency_ms?: number;
+  records?: {
+    tenants: number;
+    users: number;
+    contacts: number;
+  };
+  error?: string;
+}
+
+export async function checkDatabaseStatus(): Promise<DatabaseStatusResponse> {
+  const resp = await fetch(`${API_BASE_URL}/api/v1/system/db-status`, {
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!resp.ok) {
+    throw new Error(`Database status endpoint returned HTTP ${resp.status}`);
+  }
+  return resp.json();
 }
 
 export interface RegisterTenantPayload {

@@ -13,9 +13,10 @@ import {
   ExternalLink,
   Activity,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Database
 } from 'lucide-react';
-import { API_BASE_URL, testMetaWebhookHandshake } from '../../services/api';
+import { API_BASE_URL, testMetaWebhookHandshake, checkDatabaseStatus, type DatabaseStatusResponse } from '../../services/api';
 
 const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
@@ -170,6 +171,26 @@ export const MetaEmailSettings: React.FC = () => {
       showToast('Webhook Verification Failed: ' + (err?.message || 'Network error'));
     } finally {
       setIsTestingWebhook(false);
+    }
+  };
+
+  const [dbStatusData, setDbStatusData] = useState<DatabaseStatusResponse | null>(null);
+  const [isCheckingDb, setIsCheckingDb] = useState(false);
+
+  const handleCheckDatabase = async () => {
+    setIsCheckingDb(true);
+    try {
+      const res = await checkDatabaseStatus();
+      setDbStatusData(res);
+      if (res.database_connected) {
+        showToast(`Database is CONNECTED (${res.engine || 'SQL'})! Latency: ${res.latency_ms}ms`);
+      } else {
+        showToast(`Database disconnected: ${res.error || 'Check server logs'}`);
+      }
+    } catch (err: any) {
+      showToast('Could not query database status: ' + (err?.message || 'Server waking up'));
+    } finally {
+      setIsCheckingDb(false);
     }
   };
 
@@ -740,6 +761,65 @@ export const MetaEmailSettings: React.FC = () => {
           {/* SECTION 6: DIAGNOSTICS & WEBHOOK LOGS */}
           {activeSection === 'diagnostics' && (
             <div className="max-w-4xl space-y-6">
+              {/* Database Connection Status Card */}
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-900 border border-indigo-500/30">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                      <Database className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        Cloud Database Engine Connectivity
+                        {dbStatusData?.database_connected && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            ONLINE & ACTIVE
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-slate-400">Render PostgreSQL / SQLite Async Session State</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCheckDatabase}
+                    disabled={isCheckingDb}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition shadow-sm"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingDb ? 'animate-spin' : ''}`} />
+                    <span>{isCheckingDb ? 'Verifying DB...' : 'Test Database Connection'}</span>
+                  </button>
+                </div>
+
+                {dbStatusData ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80 text-xs">
+                    <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">Engine</span>
+                      <span className="font-bold text-indigo-300 font-mono text-sm">{dbStatusData.engine || 'ACTIVE'}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">Driver</span>
+                      <span className="font-bold text-slate-300 font-mono text-xs truncate block">{dbStatusData.driver || 'asyncpg/aiosqlite'}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">Latency</span>
+                      <span className="font-bold text-emerald-400 font-mono text-sm">{dbStatusData.latency_ms} ms</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">Stored Records</span>
+                      <span className="font-bold text-white text-xs">
+                        {dbStatusData.records ? `${dbStatusData.records.tenants} Tenants / ${dbStatusData.records.contacts} Contacts` : 'Active'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-400 bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-center justify-between">
+                    <span>Click <strong>"Test Database Connection"</strong> to execute live SQL query on Render cloud database.</span>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-white">Webhook Handshake & Event Log Console</h2>
