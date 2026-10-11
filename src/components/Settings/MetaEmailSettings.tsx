@@ -11,8 +11,11 @@ import {
   Plus,
   Copy,
   ExternalLink,
-  Activity
+  Activity,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
+import { API_BASE_URL, testMetaWebhookHandshake } from '../../services/api';
 
 const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
@@ -89,7 +92,7 @@ export const MetaEmailSettings: React.FC = () => {
     displayPhoneNumber: '+1 415 555 2671',
     accessToken: 'EAAG...centegix_encrypted_token_sample',
     verifyToken: 'centegix_secure_verify_token_2026',
-    webhookUrl: 'http://localhost:4000/api/v1/webhooks/meta',
+    webhookUrl: `${API_BASE_URL}/api/v1/webhooks/meta`,
     appId: '849201938475629',
     appSecret: '••••••••••••••••••••••••••••••••',
     enabled: true
@@ -144,6 +147,31 @@ export const MetaEmailSettings: React.FC = () => {
     '[2026-10-08 10:16:04] INBOUND WHATSAPP (+14155552671) -> Conversation #CONV-102 created',
     '[2026-10-08 10:17:40] OUTBOUND MESSAGE status callback -> DELIVERED (wamid.HBgL...)'
   ]);
+
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{ success: boolean; msg: string } | null>(null);
+
+  const handleTestLiveWebhook = async () => {
+    setIsTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const challengeStr = `render_test_${Date.now()}`;
+      const res = await testMetaWebhookHandshake(waConfig.verifyToken, challengeStr);
+      setWebhookTestResult({
+        success: true,
+        msg: `Verified with Render API! Challenge echoed: "${res}"`
+      });
+      showToast('Live Webhook Handshake Verified with Render Backend!');
+    } catch (err: any) {
+      setWebhookTestResult({
+        success: false,
+        msg: err?.message || 'Handshake failed'
+      });
+      showToast('Webhook Verification Failed: ' + (err?.message || 'Network error'));
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
 
   const handleSaveConfig = () => {
     showToast('Channel settings & Meta API credentials saved securely!');
@@ -408,6 +436,34 @@ export const MetaEmailSettings: React.FC = () => {
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
                       />
                     </div>
+                  </div>
+
+                  {/* Live Render API Test Button & Result */}
+                  <div className="flex flex-col gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleTestLiveWebhook}
+                      disabled={isTestingWebhook}
+                      className="self-start inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition shadow-sm"
+                    >
+                      <Activity className={`w-3.5 h-3.5 ${isTestingWebhook ? 'animate-spin' : ''}`} />
+                      <span>{isTestingWebhook ? 'Testing Handshake...' : 'Test Handshake with Render Backend'}</span>
+                    </button>
+
+                    {webhookTestResult && (
+                      <div className={`p-3 rounded-xl text-xs flex items-center gap-2.5 border ${
+                        webhookTestResult.success 
+                          ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300' 
+                          : 'bg-red-950/40 border-red-500/40 text-red-300'
+                      }`}>
+                        {webhookTestResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                        )}
+                        <span>{webhookTestResult.msg}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

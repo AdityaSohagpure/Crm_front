@@ -18,7 +18,8 @@ const Navbar: React.FC = () => {
     setActiveTenantId, 
     searchQuery, 
     setSearchQuery,
-    showToast 
+    showToast,
+    backendOnline 
   } = useCRM();
 
   const [isDealModalOpen, setIsDealModalOpen] = useState(false);
@@ -121,6 +122,33 @@ const Navbar: React.FC = () => {
           </button>
 
           <div className="h-6 w-px bg-slate-200"></div>
+
+          {/* Live Render Backend Status Indicator */}
+          <a 
+            href="https://crm-python-3ocz.onrender.com/docs"
+            target="_blank"
+            rel="noreferrer"
+            title="Render Python Backend API - Click to view Swagger Docs"
+            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+              backendOnline === true
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                : backendOnline === false
+                ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                : 'bg-slate-50 border-slate-200 text-slate-600'
+            }`}
+          >
+            <span className="relative flex h-2 w-2">
+              {backendOnline === true && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              )}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                backendOnline === true ? 'bg-emerald-500' : backendOnline === false ? 'bg-amber-500' : 'bg-slate-400'
+              }`}></span>
+            </span>
+            <span className="text-[11px]">
+              {backendOnline === true ? 'Render API: Live' : backendOnline === false ? 'Render API: Reconnecting' : 'Render API: Checking...'}
+            </span>
+          </a>
 
           {/* System SLA Status Indicator */}
           <div 

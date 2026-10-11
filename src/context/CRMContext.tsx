@@ -25,6 +25,7 @@ import {
   INITIAL_AUTOMATIONS 
 } from '../data/mockData';
 import confetti from 'canvas-confetti';
+import { checkBackendHealth, fetchContacts, createBackendContact } from '../services/api';
 
 interface CRMContextType {
   deals: Deal[];
@@ -64,6 +65,10 @@ interface CRMContextType {
   setActiveTenantId: (tenantId: string) => void;
   toggleAutomationRule: (ruleId: string) => void;
   
+  // Backend Cloud API Status
+  backendOnline: boolean | null;
+  checkBackendConnection: () => Promise<void>;
+
   // Notification Toast
   toastMessage: string | null;
   showToast: (msg: string) => void;
@@ -117,6 +122,48 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+
+  const checkBackendConnection = async () => {
+    try {
+      const res = await checkBackendHealth();
+      if (res && (res.status === 'ONLINE' || res.status === 'ok')) {
+        setBackendOnline(true);
+        try {
+          const liveContacts = await fetchContacts();
+          if (liveContacts && liveContacts.length > 0) {
+            setContacts(prev => {
+              const existingEmails = new Set(prev.map(c => c.email?.toLowerCase()).filter(Boolean));
+              const newItems: Contact[] = liveContacts
+                .filter(lc => lc.email && !existingEmails.has(lc.email.toLowerCase()))
+                .map(lc => ({
+                  id: lc.id,
+                  name: lc.name,
+                  title: 'Account Executive',
+                  company: 'Enterprise Client',
+                  email: lc.email || '',
+                  phone: lc.phone || '',
+                  dealsAssociated: 1,
+                  totalRevenue: 50000,
+                  lastContacted: new Date().toISOString().split('T')[0]
+                }));
+              return [...newItems, ...prev];
+            });
+          }
+        } catch {
+          // Keep local mock/cached contacts if not yet authenticated
+        }
+      } else {
+        setBackendOnline(false);
+      }
+    } catch {
+      setBackendOnline(false);
+    }
+  };
+
+  useEffect(() => {
+    checkBackendConnection();
+  }, []);
 
   // Sync state to local storage
   useEffect(() => {
@@ -243,6 +290,22 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setContacts(prev => [newContact, ...prev]);
     showToast(`Contact "${newContact.name}" saved.`);
+
+    // Synchronize to Render Cloud Backend
+    createBackendContact({
+      name: contactData.name,
+      email: contactData.email,
+      phone: contactData.phone,
+      notes: `${contactData.title} at ${contactData.company}`,
+      leadStatus: 'QUALIFIED',
+      tags: ['Enterprise CRM']
+    }).then(res => {
+      if (res?.id) {
+        showToast(`Contact synced to Render Cloud (ID: ${res.id})`);
+      }
+    }).catch(err => {
+      console.warn('Backend sync failed, saved locally:', err);
+    });
   };
 
   const addOrganization = (orgData: Omit<Organization, 'id'>) => {
@@ -332,6 +395,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resetCompanyConfig,
       setActiveTenantId,
       toggleAutomationRule,
+      backendOnline,
+      checkBackendConnection,
       toastMessage,
       showToast,
     }}>
