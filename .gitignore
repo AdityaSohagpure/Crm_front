@@ -1,0 +1,43 @@
+# Dependencies & build
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment & local DB
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+
+# Backend & database directories (not part of frontend repository)
+backend/
+backend_python/
+database/
+render.yaml
+detailed_project_structure.md
+final_master_implementation_plan.md
+meta_and_email_integration_plan.md
+multi_tenant_crm_architecture.md
+
+# Editor & OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
